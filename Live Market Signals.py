@@ -46,10 +46,15 @@ audcad = 'AUDCAD=X'
 
 #Currency list
 curr_list = [eurusd,eurjpy,gbpusd,eurgbp,cadjpy,usdcad,eurnzd,audcad]
+n=0
+p=0
 
 for curr_pair in curr_list:
 #download data
     data = yf.download(curr_pair,period='1mo',interval='1h')
+
+    #Moving average
+    data['MA'] = data['Close'].rolling(window=50).mean()
 
     #Bollinger bands
     data['Middle Band'] = data['Close'].rolling(window=21).mean()
@@ -101,14 +106,17 @@ for curr_pair in curr_list:
     ult_row = data.iloc[-2]
 
     #Buy signal
-    if penult_row['Close'] < penult_row['Lower Band'] and  \
-        ult_row['Low'] < ult_row['Lower Band'] and ult_row['Close'] > ult_row['Lower Band']:
+    if penult_row['Low'] < penult_row['Lower Band']  and ult_row['Close'] > ult_row['Open']\
+        and penult_row['MA'] < ult_row['MA']:
         gmail('Buy signal for '+curr_pair,'')
+        n=n+1
         
     #Sell signal
-    if penult_row['Close'] > penult_row['Upper Band'] and  \
-        ult_row['High'] > ult_row['Upper Band'] and ult_row['Close'] < ult_row['Upper Band']:
+    if penult_row['High'] > penult_row['Upper Band'] and ult_row['Close'] < ult_row['Open']\
+        and penult_row['MA'] > ult_row['MA']:
         gmail('Sell signal for '+curr_pair,'')
+        n=n+1
+    p=p+1
 
 _time = datetime.now()
-gmail('Market analyser ran at '+(str(_time)), '')
+gmail('Market analyser ran at '+(str(_time)),str(p)+' currency pairs were analysed.\n' +str(n)+' trading signals were detected.')
