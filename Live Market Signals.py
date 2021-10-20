@@ -1,6 +1,7 @@
 #! python3
 
 #Get live FOREX data
+#Script triggered via .bat file through task scheduler on the hour every hour
 
 # Raw Package
 from datetime import datetime
@@ -10,6 +11,12 @@ import yfinance as yf
 
 #Data viz
 import plotly.graph_objs as go
+
+#quits if saturday or sunday
+if datetime.today().weekday() == 5 or datetime.today().weekday() == 6:
+    quit()
+
+_time = str(datetime.today())
 
 #gmail function
 def gmail(subject,body): #type(subject,body) == str
@@ -57,21 +64,24 @@ audchf = 'AUDCHF=X'
 eurchf = 'EURCHF=X'
 gbpcad = 'GBPCAD=X'
 
-#quits if saturday or sunday
-if datetime.today().weekday() == 5 or datetime.today().weekday() == 6:
-    quit()
+#Crypto
+btc = 'BTC-USD'
+eth = 'ETH-USD'
 
 #Currency list
-curr_list = [eurusd,eurjpy,gbpusd,eurgbp,cadjpy,usdcad,eurnzd,audcad,audjpy,nzdjpy,usdchf,nzdusd,euraud,nzdcad,cadchf,nzdchf,chfjpy,audnzd,audchf,eurchf,gbpcad]
+trade_list = [  eurusd,eurjpy,gbpusd,eurgbp,cadjpy,usdcad,eurnzd,audcad,audjpy,nzdjpy,\
+                usdchf,nzdusd,euraud,nzdcad,cadchf,nzdchf,chfjpy,audnzd,audchf,eurchf,gbpcad,\
+                btc,eth]
 n=0
 p=0
 
-for curr_pair in curr_list:
+for i in trade_list:
 #download data
-    data = yf.download(curr_pair,period='1mo',interval='1h')
+    data = yf.download(i,period='1mo',interval='1h')
 
     #Moving average
-    data['MA'] = data['Close'].rolling(window=50).mean()
+    data['100MA'] = data['Close'].rolling(window=100).mean()
+    data['50MA'] = data['Close'].rolling(window=50).mean()
 
     #Bollinger bands
     data['Middle Band'] = data['Close'].rolling(window=21).mean()
@@ -96,7 +106,7 @@ for curr_pair in curr_list:
 
     #add titles
     fig.update_layout(
-        title=curr_pair) 
+        title=i) 
 
     # X-Axes
     fig.update_xaxes(
@@ -116,23 +126,32 @@ for curr_pair in curr_list:
     '''
     #send emails based on criteria
     #criteria:
-        #Buy: Lowest below Lower Band and close above Lowest
-        #Sell: Highest above Higher Band and close below Higher Band
+        #Buy:    Lowest below Lower Band and close above Lowest, decreasing Middle Band
+        #        50MA and 100MA cross
+        #Sell: Highest above Higher Band and close below Higher Band, increasing Middle Band
+        #       50MA and 100MA cross
         
     penult_row = data.iloc[-3]
     ult_row = data.iloc[-2]
 
     #Buy signal
-    if penult_row['Low'] < penult_row['Lower Band']  and ult_row['Close'] > ult_row['Open']\
-        and penult_row['MA'] < ult_row['MA']:
-        gmail('Buy signal for '+curr_pair,'')
+    if penult_row['Close'] < penult_row['Lower Band'] and ult_row['Close'] > ult_row['Lower Band']\
+        and penult_row['100MA'] < ult_row['100MA']: #bullish trend
+        gmail('Buy signal for '+i,'Bollinger buy signal.\nSent at '+_time+'.')
+        n=n+1
+    if penult_row['100MA'] > penult_row['50MA'] and ult_row['100MA'] < ult_row['50MA']:
+        gmail('Buy signal for '+i,'Moving average buy signal.\nSent at '+_time+'.')
         n=n+1
         
     #Sell signal
-    if penult_row['High'] > penult_row['Upper Band'] and ult_row['Close'] < ult_row['Open']\
-        and penult_row['MA'] > ult_row['MA']:
-        gmail('Sell signal for '+curr_pair,'')
+    if penult_row['Close'] > penult_row['Upper Band'] and ult_row['Close'] < ult_row['Upper Band'] \
+        and penult_row['100MA'] > ult_row['100MA']: #bearish trend
+        gmail('Sell signal for '+i,'Bollinger sell signal.\nSent at '+_time+'.')
         n=n+1
+    if penult_row['100MA'] < penult_row['50MA'] and ult_row['100MA'] > ult_row['50MA']:
+        gmail('Buy signal for '+i,'Moving average sell signal.\nSent at '+_time+'.')
+        n=n+1
+
     p=p+1
 
 _time = datetime.now()
