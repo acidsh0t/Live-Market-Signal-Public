@@ -43,9 +43,26 @@ cadjpy = 'CADJPY=X'
 usdcad = 'CAD=X'
 eurnzd = 'EURNZD=X'
 audcad = 'AUDCAD=X'
+audjpy = 'AUDJPY=X'
+nzdjpy = 'NZDJPY=X'
+usdchf = 'CHF=X'
+nzdusd = 'NZDUSD=X'
+euraud = 'EURAUD=X'
+nzdcad = 'NZDCAD=X'
+cadchf = 'CADCHF=X'
+nzdchf = 'NZDCHF=X'
+chfjpy = 'CHFJPY=X'
+audnzd = 'AUDNZD=X'
+audchf = 'AUDCHF=X'
+eurchf = 'EURCHF=X'
+gbpcad = 'GBPCAD=X'
+
+#quits if saturday or sunday
+if datetime.today().weekday() == 5 or datetime.today().weekday() == 6:
+    quit()
 
 #Currency list
-curr_list = [eurusd,eurjpy,gbpusd,eurgbp,cadjpy,usdcad,eurnzd,audcad]
+curr_list = [eurusd,eurjpy,gbpusd,eurgbp,cadjpy,usdcad,eurnzd,audcad,audjpy,nzdjpy,usdchf,nzdusd,euraud,nzdcad,cadchf,nzdchf,chfjpy,audnzd,audchf,eurchf,gbpcad]
 n=0
 p=0
 
