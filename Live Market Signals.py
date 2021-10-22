@@ -5,6 +5,8 @@
 
 # Raw Package
 from datetime import datetime
+import numpy as np
+import pandas as pd
 
 #Data Source
 import yfinance as yf
@@ -87,6 +89,25 @@ for i in trade_list:
     data['Middle Band'] = data['Close'].rolling(window=21).mean()
     data['Upper Band'] = data['Middle Band'] + 1.96*data['Close'].rolling(window=21).std()
     data['Lower Band'] = data['Middle Band'] - 1.96*data['Close'].rolling(window=21).std()
+
+    #ATR
+    high_low = data['High'] - data['Low']
+    high_close = np.abs(data['High'] - data['Close'].shift())
+    low_close = np.abs(data['Low'] - data['Close'].shift())
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    true_range = np.max(ranges, axis=1)
+    data['ATR'] = true_range.rolling(14).sum()/14
+   
+    #Stop loss calculation (%)
+    if i == eurjpy or i == cadjpy or i == audjpy or i == nzdjpy or i == chfjpy:
+        data['stop_loss'] = data['ATR'] * 100
+    elif i == btc:
+        data['stop_loss'] = data['ATR'] / 100
+    elif i == eth:
+        data['stop_loss'] = data['ATR'] / 10
+    else:
+        data['stop_loss'] = data['ATR'] * 10000
+       
     '''
     #declare figure
     fig = go.Figure()
@@ -137,22 +158,29 @@ for i in trade_list:
     #Buy signal
     if penult_row['Close'] < penult_row['Lower Band'] and ult_row['Close'] > ult_row['Lower Band']\
         and penult_row['100MA'] < ult_row['100MA']: #bullish trend
-        gmail('Buy signal for '+i,'Bollinger buy signal.\nSent at '+_time+'.')
+        gmail('Buy signal for '+i,'Bollinger buy signal.\
+            \nStop Loss (%) to be set at '+str(ult_row['stop_loss'])+\
+            '\nSent at '+_time+'.')
         n=n+1
     if penult_row['100MA'] > penult_row['50MA'] and ult_row['100MA'] < ult_row['50MA']:
-        gmail('Buy signal for '+i,'Moving average buy signal.\nSent at '+_time+'.')
+        gmail('Buy signal for '+i,'Moving average buy signal.\
+            \nStop Loss (%) to be set at '+str(ult_row['stop_loss'])+\
+            '\nSent at '+_time+'.')
         n=n+1
         
     #Sell signal
     if penult_row['Close'] > penult_row['Upper Band'] and ult_row['Close'] < ult_row['Upper Band'] \
         and penult_row['100MA'] > ult_row['100MA']: #bearish trend
-        gmail('Sell signal for '+i,'Bollinger sell signal.\nSent at '+_time+'.')
+        gmail('Sell signal for '+i,'Bollinger sell signal.\
+            \nStop Loss (%) to be set at '+str(ult_row['stop_loss'])+\
+            '\nSent at '+_time+'.')
         n=n+1
     if penult_row['100MA'] < penult_row['50MA'] and ult_row['100MA'] > ult_row['50MA']:
-        gmail('Buy signal for '+i,'Moving average sell signal.\nSent at '+_time+'.')
+        gmail('Sell signal for '+i,'Moving average sell signal.\
+            \nStop Loss (%) to be set at '+str(ult_row['stop_loss'])+\
+            '\nSent at '+_time+'.')
         n=n+1
-
     p=p+1
 
-_time = datetime.now()
-gmail('Market analyser ran at '+(str(_time)),str(p)+' currency pairs were analysed.\n' +str(n)+' trading signals were detected.')
+gmail('Market analyser ran at '+_time,str(p)+' trade items were analysed.\n' +str(n)+' trading signals were detected.')
+quit()
