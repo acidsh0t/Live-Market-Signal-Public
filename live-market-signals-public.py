@@ -114,8 +114,8 @@ for i in trade_list:
         stop_loss = ult_row['ATR'] * 10000
 
     #Position Size
-    cap = 1624.94 #Total available capital
-    risk = 0.02 #Total of 2% risk
+    cap =  #Total available capital == int
+    risk =  #Total of 2% risk == float
     abs_risk = cap * risk #Absolute risk in PhP
     pos = abs_risk / (stop_loss/100) #Position size
    
