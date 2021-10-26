@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 import pandas_ta as pta
+from tinydb import TinyDB
+from tinydb.queries import Query
 
 #Data Source
 import yfinance as yf
@@ -15,8 +17,6 @@ import yfinance as yf
 #gmail packages
 import smtplib
 from email.mime.text import MIMEText
-
-cap = 10000 #Total available capital
 
 _time = datetime.utcnow()
 _time = str(_time + timedelta(hours = 8)) #Philippine timezone
@@ -29,6 +29,14 @@ if half_hour >= 30:
 
 _time = _time[:-7] #simplifies time expression
 
+#gets total investing capital from tinyDB
+db = TinyDB('trading-capital.json')
+capital = Query()
+cap = db.search(capital['Name']=='Starting Capital')
+cap = pd.DataFrame(cap)
+cap = float(cap.iloc[-1]['Amount']) #isolates desired value and converts to float
+
+risk = 0.02 #Total of 2% risk
 
 #gmail function
 def gmail(subject,body): #type(subject,body) == str
@@ -98,16 +106,13 @@ for i in trade_list:
     #download data
     data = yf.download(i,period='1mo',interval='1h')
 
-    #Moving average
-    data['100MA'] = data['Close'].rolling(window=100).mean()
-
     #Stochastic oscillator
     # Define periods
     k_period = 15
     d_period = 3
-    # Adds a "n_high" column with max value of previous 14 periods
+    #max value of previous 14 periods
     n_high = data['High'].rolling(k_period).max()
-    # Adds an "n_low" column with min value of previous 14 periods
+    #min value of previous 14 periods
     n_low = data['Low'].rolling(k_period).min()
     # Uses the min/max values to calculate the %k (as a percentage)
     data['%K'] = (data['Close'] - n_low) * 100 / (n_high - n_low)
@@ -135,6 +140,7 @@ for i in trade_list:
     true_range = np.max(ranges, axis=1)
     data['ATR'] = true_range.rolling(14).sum()/14
 
+    last_5 = data.tail(5) #gets last 5 rows
     penult_row = data.iloc[-3] #2nd last confirmed candle
     ult_row = data.iloc[-2] #last confirmed candle
 
@@ -149,15 +155,13 @@ for i in trade_list:
         stop_loss = ult_row['ATR'] * 10000
 
     #Position Size
-    risk = 0.02 #Total of 2% risk
     abs_risk = cap * risk #Absolute risk
     pos = abs_risk / (stop_loss/100) #Position size
 
     #Buy signal
-    if ult_row['%K'] < 50 and ult_row['%D'] < 50 and ult_row['%K'] > ult_row['%D'] and \
-        ult_row['RSI'] >= 45 and ult_row['RSI'] <= 55 and penult_row['RSI'] < ult_row['RSI'] and \
-        ult_row['MACD'] > ult_row['MACD_S'] and ult_row['MACD'] < 0 and \
-        ult_row['100MA'] > penult_row['100MA']:
+    if ult_row['%D'] < 50 and ult_row['%K'] > ult_row['%D'] and max(last_5['%D']) > 80 and \
+        penult_row['RSI'] <= 50 and ult_row['RSI'] >= 50 and max(last_5['RSI']) > 70 and \
+        ult_row['MACD'] > ult_row['MACD_S'] and ult_row['MACD'] < 0:
         gmail('Buy signal for '+i,\
             '\nStop Loss (%) to be set at '+str(stop_loss)+\
             '\nPosition size: '+str(pos)+\
@@ -165,10 +169,9 @@ for i in trade_list:
         n=n+1
         
     #Sell signal
-    if ult_row['%K'] > 50 and ult_row['%D'] > 50 and ult_row['%K'] < ult_row['%D'] and \
-        ult_row['RSI'] >= 45 and ult_row['RSI'] <= 55 and penult_row['RSI'] > ult_row['RSI'] and \
-        ult_row['MACD'] < ult_row['MACD_S'] and ult_row['MACD'] > 0 and \
-        ult_row['100MA'] < penult_row['100MA']:
+    if ult_row['%D'] > 50 and ult_row['%K'] < ult_row['%D'] and min(last_5['%D']) < 20 and \
+        penult_row['RSI'] >= 50 and ult_row['RSI'] <= 50 and min(last_5['RSI']) < 30 and \
+        ult_row['MACD'] < ult_row['MACD_S'] and ult_row['MACD'] > 0:
         gmail('Sell signal for '+i,\
             '\nStop Loss (%) to be set at '+str(stop_loss)+\
             '\nPosition size: '+str(pos)+\
