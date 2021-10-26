@@ -1,29 +1,40 @@
 #! python3
 
 #Get live FOREX data
-#Script triggered via .bat file through task scheduler on the hour every hour
+#Configured on Heroku to run on the hour every hour
 
 # Raw Package
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
+import pandas_ta as pta
 
 #Data Source
 import yfinance as yf
 
-#Data viz
-import plotly.graph_objs as go
+#gmail packages
+import smtplib
+from email.mime.text import MIMEText
+
+cap = 10000 #Total available capital
 
 _time = datetime.utcnow()
-_time = str(_time + timedelta(hours = 8))
+_time = str(_time + timedelta(hours = 8)) #Philippine timezone
+
+#quits if after :30
+half_hour = _time #converts time to string
+half_hour = int(half_hour[14:-10]) #only retains minutes
+if half_hour >= 30:
+    quit()
+
+_time = _time[:-7] #simplifies time expression
+
 
 #gmail function
 def gmail(subject,body): #type(subject,body) == str
-    from email.mime.text import MIMEText
-    import smtplib
-
     gmail_username = ''
     recipients = ''
+    pw = '' #password
 
     #message details
     msg = MIMEText(body)
@@ -36,48 +47,52 @@ def gmail(subject,body): #type(subject,body) == str
     session = smtplib.SMTP('smtp.gmail.com', 587)
     session.ehlo()
     session.starttls()
-    session.login(gmail_username, '')
+    session.login(gmail_username,pw)
     session.sendmail(gmail_username, recipients, msg)
     session.quit()
 
-#Currency pairs
-eurusd = 'EURUSD=X'
-eurjpy = 'EURJPY=X'
-gbpusd = 'GBPUSD=X'
-eurgbp = 'EURGBP=X'
-cadjpy = 'CADJPY=X'
-usdcad = 'CAD=X'
-eurnzd = 'EURNZD=X'
+#FOREX PAIRS
 audcad = 'AUDCAD=X'
-audjpy = 'AUDJPY=X'
-nzdjpy = 'NZDJPY=X'
-usdchf = 'CHF=X'
-nzdusd = 'NZDUSD=X'
-euraud = 'EURAUD=X'
-nzdcad = 'NZDCAD=X'
-cadchf = 'CADCHF=X'
-nzdchf = 'NZDCHF=X'
-chfjpy = 'CHFJPY=X'
-audnzd = 'AUDNZD=X'
 audchf = 'AUDCHF=X'
+audjpy = 'AUDJPY=X'
+audnzd = 'AUDNZD=X'
+audusd = 'AUDUSD=X'
+cadchf = 'CADCHF=X'
+cadjpy = 'CADJPY=X'
+chfjpy = 'CHFJPY=X'
+euraud = 'EURAUD=X'
+eurcad = 'EURCAD=X'
 eurchf = 'EURCHF=X'
+eurgbp = 'EURGBP=X'
+eurjpy = 'EURJPY=X'
+eurnzd = 'EURNZD=X'
+eurusd = 'EURUSD=X'
 gbpcad = 'GBPCAD=X'
+gbpjpy = 'GBPJPY=X'
+gbpusd = 'GBPUSD=X'
+nzdjpy = 'NZDJPY=X'
+nzdusd = 'NZDUSD=X'
+nzdcad = 'NZDCAD=X'
+nzdchf = 'NZDCHF=X'
+usdcad = 'CAD=X'
+usdchf = 'CHF=X'
+usdjpy = 'JPY=X'
 
 #Crypto
 btc = 'BTC-USD'
 eth = 'ETH-USD'
 
-#only analyses crypto on weekends
+#analyses only crypto on weekends
 if datetime.today().weekday() >= 5: 
     trade_list = [btc,eth]
 #Trade List
 else:
-    trade_list = [  eurusd,eurjpy,gbpusd,eurgbp,cadjpy,usdcad,eurnzd,audcad,audjpy,nzdjpy,\
-                    usdchf,nzdusd,euraud,nzdcad,cadchf,nzdchf,chfjpy,audnzd,audchf,eurchf,gbpcad,\
+    trade_list = [  eurusd,eurjpy,gbpusd,eurgbp,cadjpy,usdcad,eurnzd,audcad,audjpy,nzdjpy,audusd,usdjpy,eurcad,\
+                    usdchf,nzdusd,euraud,nzdcad,cadchf,nzdchf,chfjpy,audnzd,audchf,eurchf,gbpcad,gbpjpy,\
                     btc,eth]
 
-n=0
-p=0
+n=0 #Trade signals detected
+p=0 #Trade items analysed
 
 for i in trade_list:
     #download data
@@ -85,12 +100,32 @@ for i in trade_list:
 
     #Moving average
     data['100MA'] = data['Close'].rolling(window=100).mean()
-    data['50MA'] = data['Close'].rolling(window=50).mean()
 
-    #Bollinger bands
-    data['Middle Band'] = data['Close'].rolling(window=21).mean()
-    data['Upper Band'] = data['Middle Band'] + 1.96*data['Close'].rolling(window=21).std()
-    data['Lower Band'] = data['Middle Band'] - 1.96*data['Close'].rolling(window=21).std()
+    #Stochastic oscillator
+    # Define periods
+    k_period = 15
+    d_period = 3
+    # Adds a "n_high" column with max value of previous 14 periods
+    n_high = data['High'].rolling(k_period).max()
+    # Adds an "n_low" column with min value of previous 14 periods
+    n_low = data['Low'].rolling(k_period).min()
+    # Uses the min/max values to calculate the %k (as a percentage)
+    data['%K'] = (data['Close'] - n_low) * 100 / (n_high - n_low)
+    # Uses the %k to calculates a SMA over the past 3 values of %k
+    data['%D'] = data['%K'].rolling(d_period).mean()
+
+    #RSI
+    data['RSI'] = pta.rsi(data['Close'], length = 14)
+
+    #MACD
+    # Get the 21-period EMA of the closing price
+    k = data['Close'].ewm(span=21, adjust=False, min_periods=21).mean()
+    # Get the 8-period EMA of the closing price
+    d = data['Close'].ewm(span=8, adjust=False, min_periods=8).mean()
+    # Subtract the 21-period EMA from the 8-period EMA to get the MACD
+    data['MACD'] = d - k
+    # Get the 5-period EMA of the MACD for the Trigger line
+    data['MACD_S'] = data['MACD'].ewm(span=5, adjust=False, min_periods=5).mean()
 
     #ATR
     high_low = data['High'] - data['Low']
@@ -100,61 +135,47 @@ for i in trade_list:
     true_range = np.max(ranges, axis=1)
     data['ATR'] = true_range.rolling(14).sum()/14
 
-    penult_row = data.iloc[-3]
-    ult_row = data.iloc[-2]
+    penult_row = data.iloc[-3] #2nd last confirmed candle
+    ult_row = data.iloc[-2] #last confirmed candle
 
     #Stop loss calculation (%)
-    if i == eurjpy or i == cadjpy or i == audjpy or i == nzdjpy or i == chfjpy:
+    if i == eurjpy or i == cadjpy or i == audjpy or i == nzdjpy or i == chfjpy or i == gbpjpy or i == usdjpy: #all JPY pairs
         stop_loss = ult_row['ATR'] * 100
     elif i == btc:
-        stop_loss = ult_row['ATR'] / 100
+        stop_loss = 10
     elif i == eth:
-        stop_loss = ult_row['ATR'] / 10
+        stop_loss = 20
     else:
         stop_loss = ult_row['ATR'] * 10000
 
     #Position Size
-    cap =  #Total available capital == int
-    risk =  #Total of 2% risk == float
-    abs_risk = cap * risk #Absolute risk in PhP
+    risk = 0.02 #Total of 2% risk
+    abs_risk = cap * risk #Absolute risk
     pos = abs_risk / (stop_loss/100) #Position size
-   
-    #send emails based on criteria
-    #criteria:
-        #Buy:    Lowest below Lower Band and close above Lowest, decreasing Middle Band
-        #        50MA and 100MA cross
-        #Sell: Highest above Higher Band and close below Higher Band, increasing Middle Band
-        #       50MA and 100MA cross
 
     #Buy signal
-    if penult_row['Close'] < penult_row['Lower Band'] and ult_row['Close'] > ult_row['Lower Band']\
-        and penult_row['100MA'] < ult_row['100MA']: #bullish trend
-        gmail('Buy signal for '+i,'Bollinger buy signal.\
-            \nStop Loss (%) to be set at '+str(stop_loss)+\
-            '\nPosition size: '+str(pos)+\
-            '\nSent at '+_time+'.')
-        n=n+1
-    if penult_row['100MA'] > penult_row['50MA'] and ult_row['100MA'] < ult_row['50MA']: #trend reversal
-        gmail('Buy signal for '+i,'Moving average buy signal.\
-            \nStop Loss (%) to be set at '+str(stop_loss)+\
+    if ult_row['%K'] < 50 and ult_row['%D'] < 50 and ult_row['%K'] > ult_row['%D'] and \
+        ult_row['RSI'] >= 45 and ult_row['RSI'] <= 55 and penult_row['RSI'] < ult_row['RSI'] and \
+        ult_row['MACD'] > ult_row['MACD_S'] and ult_row['MACD'] < 0 and \
+        ult_row['100MA'] > penult_row['100MA']:
+        gmail('Buy signal for '+i,\
+            '\nStop Loss (%) to be set at '+str(stop_loss)+\
             '\nPosition size: '+str(pos)+\
             '\nSent at '+_time+'.')
         n=n+1
         
     #Sell signal
-    if penult_row['Close'] > penult_row['Upper Band'] and ult_row['Close'] < ult_row['Upper Band']\
-        and penult_row['100MA'] > ult_row['100MA']: #bearish trend
-        gmail('Sell signal for '+i,'Bollinger sell signal.\
-            \nStop Loss (%) to be set at '+str(stop_loss)+\
-            '\nPosition size: '+str(pos)+\
-            '\nSent at '+_time+'.')
-        n=n+1
-    if penult_row['100MA'] < penult_row['50MA'] and ult_row['100MA'] > ult_row['50MA']: #trend reversal
-        gmail('Sell signal for '+i,'Moving average sell signal.\
-            \nStop Loss (%) to be set at '+str(stop_loss)+\
+    if ult_row['%K'] > 50 and ult_row['%D'] > 50 and ult_row['%K'] < ult_row['%D'] and \
+        ult_row['RSI'] >= 45 and ult_row['RSI'] <= 55 and penult_row['RSI'] > ult_row['RSI'] and \
+        ult_row['MACD'] < ult_row['MACD_S'] and ult_row['MACD'] > 0 and \
+        ult_row['100MA'] < penult_row['100MA']:
+        gmail('Sell signal for '+i,\
+            '\nStop Loss (%) to be set at '+str(stop_loss)+\
             '\nPosition size: '+str(pos)+\
             '\nSent at '+_time+'.')
         n=n+1
     p=p+1
+
+#gmail('Market analyser ran at '+_time,str(p)+' trade items were analysed.\n' +str(n)+' trading signals were detected.')
 
 quit()
