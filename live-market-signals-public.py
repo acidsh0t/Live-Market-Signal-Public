@@ -140,7 +140,7 @@ for i in trade_list:
     true_range = np.max(ranges, axis=1)
     data['ATR'] = true_range.rolling(14).sum()/14
 
-    last_5 = data.tail(5) #gets last 5 rows
+    last_5 = data.tail(6) #gets last 5 confirmed rows
     penult_row = data.iloc[-3] #2nd last confirmed candle
     ult_row = data.iloc[-2] #last confirmed candle
 
