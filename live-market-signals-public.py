@@ -93,7 +93,6 @@ gbpusd = 'GBPUSD=X'
 nzdjpy = 'NZDJPY=X'
 nzdusd = 'NZDUSD=X'
 nzdcad = 'NZDCAD=X'
-nzdchf = 'NZDCHF=X'
 usdcad = 'CAD=X'
 usdchf = 'CHF=X'
 usdjpy = 'JPY=X'
@@ -108,7 +107,7 @@ if datetime.today().weekday() >= 5:
 #Trade List
 else:
     trade_list = [  eurusd,eurjpy,gbpusd,eurgbp,cadjpy,usdcad,eurnzd,audcad,audjpy,nzdjpy,audusd,usdjpy,eurcad,\
-                    usdchf,nzdusd,euraud,nzdcad,cadchf,nzdchf,chfjpy,audnzd,audchf,eurchf,gbpcad,gbpjpy,\
+                    usdchf,nzdusd,euraud,nzdcad,cadchf,chfjpy,audnzd,audchf,eurchf,gbpcad,gbpjpy,\
                     btc,eth]
 
 n=0 #Trade signals detected
@@ -183,7 +182,7 @@ for i in trade_list:
 
     #Buy signal no TP
     if last['%K'] > last['%D'] and min(last_7['%K']) < 20 and \
-        last['RSI'] >= 45 and min(last_7['RSI']) < 30 and \
+        last['RSI'] >= 50 and _2nd_last['RSI'] <= 50 and min(last_7['RSI']) < 30 and \
         (last['MACD'] > last['MACD_S'] or _2nd_last['MACD_dif'] > last['MACD_dif']) and last['MACD'] < 0 and\
         min(last_7['100MA']) < last['100MA']:
         gmail('Buy signal for '+i,\
@@ -194,17 +193,18 @@ for i in trade_list:
         
     #Sell signal no TP
     elif last['%K'] < last['%D'] and max(last_7['%K']) > 80 and \
-        last['RSI'] <= 55 and max(last_7['RSI']) > 70 and \
-        (last['MACD'] < last['MACD_S'] or _2nd_last['MACD_dif'] > last['MACD_dif']) and last['MACD'] < 0 and\
-        max(last_7['100MA']) < last['100MA']:
+        last['RSI'] <= 50 and  _2nd_last['RSI'] >= 50 and max(last_7['RSI']) > 70 and \
+        (last['MACD'] < last['MACD_S'] or _2nd_last['MACD_dif'] > last['MACD_dif']) and last['MACD'] > 0 and\
+        max(last_7['100MA']) > last['100MA']:
         gmail('Sell signal for '+i,\
             '\nStop Loss (%) to be set at '+str(stop_loss)+ \
             '\nPosition size: '+str(pos)+\
             '\n\nSent at '+_time+'.')
+        n=n+1
 
     #Buy signal with TP
     elif last['%K'] > last['%D'] and min(last_7['%K']) < 20 and \
-        last['RSI'] >= 45 and min(last_7['RSI']) < 30 and \
+        last['RSI'] >= 50 and _2nd_last['RSI'] <= 50 and min(last_7['RSI']) < 30 and \
         (last['MACD'] > last['MACD_S'] or _2nd_last['MACD_dif'] > last['MACD_dif']) and last['MACD'] < 0:
         gmail('Buy signal for '+i,\
             '\nStop Loss (%) to be set at '+str(stop_loss)+ \
@@ -215,8 +215,8 @@ for i in trade_list:
         
     #Sell signal with TP
     elif last['%K'] < last['%D'] and max(last_7['%K']) > 80 and \
-        last['RSI'] <= 55 and max(last_7['RSI']) > 70 and \
-        (last['MACD'] < last['MACD_S'] or _2nd_last['MACD_dif'] > last['MACD_dif']) and last['MACD'] < 0:
+        last['RSI'] <= 50 and  _2nd_last['RSI'] >= 50 and max(last_7['RSI']) > 70 and \
+        (last['MACD'] < last['MACD_S'] or _2nd_last['MACD_dif'] > last['MACD_dif']) and last['MACD'] > 0:
         gmail('Sell signal for '+i,\
             '\nStop Loss (%) to be set at '+str(stop_loss)+ \
             '\nTake Profit (%) to be set at '+str(stop_loss * 2)+ \
