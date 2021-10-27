@@ -1,7 +1,16 @@
 #! python3
 
-#Get live FOREX data
-#Configured on Heroku to run on the hour every hour
+'''
+Get live FOREX data
+Configured on Heroku to run on the hour every hour
+
+Trading Strategy:
+- Only looks from last confirmed 1h candle
+- Uses RSI, MACD and Stochastic Oscillator to determine trade entries
+- Uses 100MA to determine trend direction
+- If signal in direction of trend: no TP, only trailing SL. Else, TP = 2 * SL
+
+'''
 
 # Raw Package
 from datetime import datetime, timedelta
@@ -24,8 +33,8 @@ _time = str(_time + timedelta(hours = 8)) #Philippine timezone
 #quits if after :30
 half_hour = _time #converts time to string
 half_hour = int(half_hour[14:-10]) #only retains minutes
-if half_hour >= 30:
-    quit()
+#if half_hour >= 30:
+#    quit()
 
 _time = _time[:-7] #simplifies time expression
 
@@ -59,7 +68,7 @@ def gmail(subject,body): #type(subject,body) == str
     session.sendmail(gmail_username, recipients, msg)
     session.quit()
 
-#FOREX PAIRS
+#FOREX pairs and yf codes
 audcad = 'AUDCAD=X'
 audchf = 'AUDCHF=X'
 audjpy = 'AUDJPY=X'
@@ -86,7 +95,7 @@ usdcad = 'CAD=X'
 usdchf = 'CHF=X'
 usdjpy = 'JPY=X'
 
-#Crypto
+#Crypto and yf codes
 btc = 'BTC-USD'
 eth = 'ETH-USD'
 
@@ -105,6 +114,9 @@ p=0 #Trade items analysed
 for i in trade_list:
     #download data
     data = yf.download(i,period='1mo',interval='1h')
+
+    #100MA
+    data['100MA'] = data['Close'].rolling(window=100).mean()
 
     #Stochastic oscillator
     # Define periods
@@ -142,7 +154,6 @@ for i in trade_list:
 
     last_7 = data.tail(8) #gets last 7 confirmed rows
     _3rd_last = data.iloc[-4]
-    _2nd_last = data.iloc[-3] #2nd last confirmed candle
     last = data.iloc[-2] #last confirmed candle
 
     #Stop loss calculation (%)
@@ -159,27 +170,57 @@ for i in trade_list:
     abs_risk = cap * risk #Absolute risk
     pos = abs_risk / (stop_loss/100) #Position size
 
-    #Buy signal
+    '''
+    Possible strategy alterations
+    - double SL in no TP trades to ride trends with lower chance of being stopped out
+    - or just double TP
+    '''
+
+    #Buy signal no TP
     if last['%K'] > last['%D'] and min(last_7['%K']) < 20 and \
+        last['RSI'] >= 45 and min(last_7['RSI']) < 30 and \
+        last['MACD'] > last['MACD_S'] and last['MACD'] < 0 and\
+        _3rd_last['100MA'] < last['100MA']:
+        gmail('Buy signal for '+i,\
+            '\nStop Loss (%) to be set at '+str(stop_loss)+ \
+            '\nPosition size: '+str(pos)+ \
+            '\n\nSent at '+_time+'.')
+        n=n+1
+        
+    #Sell signal no TP
+    elif last['%K'] < last['%D'] and max(last_7['%K']) > 80 and \
+        last['RSI'] <= 55 and max(last_7['RSI']) > 70 and \
+        last['MACD'] < last['MACD_S'] and last['MACD'] > 0 and \
+        _3rd_last['100MA'] < last['100MA']:
+        gmail('Sell signal for '+i,\
+            '\nStop Loss (%) to be set at '+str(stop_loss)+ \
+            '\nPosition size: '+str(pos)+\
+            '\n\nSent at '+_time+'.')
+
+    #Buy signal with TP
+    elif last['%K'] > last['%D'] and min(last_7['%K']) < 20 and \
         last['RSI'] >= 45 and min(last_7['RSI']) < 30 and \
         last['MACD'] > last['MACD_S'] and last['MACD'] < 0:
         gmail('Buy signal for '+i,\
-            '\nStop Loss (%) to be set at '+str(stop_loss)+\
-            '\nPosition size: '+str(pos)+\
-            '\nSent at '+_time+'.')
+            '\nStop Loss (%) to be set at '+str(stop_loss)+ \
+            '\nTake Profit (%) to be set at '+str(stop_loss * 2)+ \
+            '\nPosition size: '+str(pos)+ \
+            '\n\nSent at '+_time+'.')
         n=n+1
         
-    #Sell signal
-    if last['%K'] < last['%D'] and max(last_7['%K']) > 80 and \
+    #Sell signal with TP
+    elif last['%K'] < last['%D'] and max(last_7['%K']) > 80 and \
         last['RSI'] <= 55 and max(last_7['RSI']) > 70 and \
         last['MACD'] < last['MACD_S'] and last['MACD'] > 0:
         gmail('Sell signal for '+i,\
-            '\nStop Loss (%) to be set at '+str(stop_loss)+\
+            '\nStop Loss (%) to be set at '+str(stop_loss)+ \
+            '\nTake Profit (%) to be set at '+str(stop_loss * 2)+ \
             '\nPosition size: '+str(pos)+\
-            '\nSent at '+_time+'.')
+            '\n\nSent at '+_time+'.')
         n=n+1
     p=p+1
 
+#Summary email for sanity checks
 #gmail('Market analyser ran at '+_time,str(p)+' trade items were analysed.\n' +str(n)+' trading signals were detected.')
 
 quit()
