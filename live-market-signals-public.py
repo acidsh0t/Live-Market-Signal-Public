@@ -29,7 +29,7 @@ if half_hour >= 30:
 
 _time = _time[:-7] #simplifies time expression
 
-#gets total investing capital from tinyDB
+#Updates total investing capital from excel sheet
 db = TinyDB('trading-capital.json')
 capital = Query()
 cap = db.search(capital['Name']=='Starting Capital')
@@ -110,9 +110,9 @@ for i in trade_list:
     # Define periods
     k_period = 15
     d_period = 3
-    #max value of previous 14 periods
+    # Adds a "n_high" column with max value of previous 14 periods
     n_high = data['High'].rolling(k_period).max()
-    #min value of previous 14 periods
+    # Adds an "n_low" column with min value of previous 14 periods
     n_low = data['Low'].rolling(k_period).min()
     # Uses the min/max values to calculate the %k (as a percentage)
     data['%K'] = (data['Close'] - n_low) * 100 / (n_high - n_low)
@@ -140,28 +140,29 @@ for i in trade_list:
     true_range = np.max(ranges, axis=1)
     data['ATR'] = true_range.rolling(14).sum()/14
 
-    last_5 = data.tail(6) #gets last 5 confirmed rows
-    penult_row = data.iloc[-3] #2nd last confirmed candle
-    ult_row = data.iloc[-2] #last confirmed candle
+    last_7 = data.tail(8) #gets last 7 confirmed rows
+    _3rd_last = data.iloc[-4]
+    _2nd_last = data.iloc[-3] #2nd last confirmed candle
+    last = data.iloc[-2] #last confirmed candle
 
     #Stop loss calculation (%)
     if i == eurjpy or i == cadjpy or i == audjpy or i == nzdjpy or i == chfjpy or i == gbpjpy or i == usdjpy: #all JPY pairs
-        stop_loss = ult_row['ATR'] * 100
+        stop_loss = last['ATR'] * 100
     elif i == btc:
         stop_loss = 10
     elif i == eth:
         stop_loss = 20
     else:
-        stop_loss = ult_row['ATR'] * 10000
+        stop_loss = last['ATR'] * 10000
 
     #Position Size
     abs_risk = cap * risk #Absolute risk
     pos = abs_risk / (stop_loss/100) #Position size
 
     #Buy signal
-    if ult_row['%D'] < 50 and ult_row['%K'] > ult_row['%D'] and max(last_5['%D']) > 80 and \
-        penult_row['RSI'] <= 50 and ult_row['RSI'] >= 50 and max(last_5['RSI']) > 70 and \
-        ult_row['MACD'] > ult_row['MACD_S'] and ult_row['MACD'] < 0:
+    if last['%K'] > last['%D'] and min(last_7['%K']) < 20 and \
+        last['RSI'] >= 45 and min(last_7['RSI']) < 30 and \
+        last['MACD'] > last['MACD_S'] and last['MACD'] < 0:
         gmail('Buy signal for '+i,\
             '\nStop Loss (%) to be set at '+str(stop_loss)+\
             '\nPosition size: '+str(pos)+\
@@ -169,9 +170,9 @@ for i in trade_list:
         n=n+1
         
     #Sell signal
-    if ult_row['%D'] > 50 and ult_row['%K'] < ult_row['%D'] and min(last_5['%D']) < 20 and \
-        penult_row['RSI'] >= 50 and ult_row['RSI'] <= 50 and min(last_5['RSI']) < 30 and \
-        ult_row['MACD'] < ult_row['MACD_S'] and ult_row['MACD'] > 0:
+    if last['%K'] < last['%D'] and max(last_7['%K']) > 80 and \
+        last['RSI'] <= 55 and max(last_7['RSI']) > 70 and \
+        last['MACD'] < last['MACD_S'] and last['MACD'] > 0:
         gmail('Sell signal for '+i,\
             '\nStop Loss (%) to be set at '+str(stop_loss)+\
             '\nPosition size: '+str(pos)+\
