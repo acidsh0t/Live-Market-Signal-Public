@@ -33,8 +33,8 @@ _time = str(_time + timedelta(hours = 8)) #Philippine timezone
 #quits if after :30
 half_hour = _time #converts time to string
 half_hour = int(half_hour[14:-10]) #only retains minutes
-#if half_hour >= 30:
-#    quit()
+if half_hour >= 30:
+    quit()
 
 _time = _time[:-7] #simplifies time expression
 
@@ -64,8 +64,11 @@ def gmail(subject,body): #type(subject,body) == str
     session = smtplib.SMTP('smtp.gmail.com', 587)
     session.ehlo()
     session.starttls()
+    print('Loging in to Gmail')
     session.login(gmail_username,pw)
+    print('Login successful\nSending email')
     session.sendmail(gmail_username, recipients, msg)
+    print('Email sent')
     session.quit()
 
 #FOREX pairs and yf codes
@@ -136,13 +139,15 @@ for i in trade_list:
 
     #MACD
     # Get the 21-period EMA of the closing price
-    k = data['Close'].ewm(span=21, adjust=False, min_periods=21).mean()
+    slow = data['Close'].ewm(span=21, adjust=False, min_periods=21).mean()
     # Get the 8-period EMA of the closing price
-    d = data['Close'].ewm(span=8, adjust=False, min_periods=8).mean()
+    fast = data['Close'].ewm(span=8, adjust=False, min_periods=8).mean()
     # Subtract the 21-period EMA from the 8-period EMA to get the MACD
-    data['MACD'] = d - k
-    # Get the 5-period EMA of the MACD for the Trigger line
+    data['MACD'] = fast - slow
+    # Get the 5-period EMA of the MACD for the Signal line
     data['MACD_S'] = data['MACD'].ewm(span=5, adjust=False, min_periods=5).mean()
+    #get difference between MACD and Signal line
+    data['MACD_dif'] = abs(data['MACD']-data['MACD_S'])
 
     #ATR
     high_low = data['High'] - data['Low']
@@ -153,7 +158,7 @@ for i in trade_list:
     data['ATR'] = true_range.rolling(14).sum()/14
 
     last_7 = data.tail(8) #gets last 7 confirmed rows
-    _3rd_last = data.iloc[-4]
+    _2nd_last = data.iloc[-3]
     last = data.iloc[-2] #last confirmed candle
 
     #Stop loss calculation (%)
@@ -179,8 +184,8 @@ for i in trade_list:
     #Buy signal no TP
     if last['%K'] > last['%D'] and min(last_7['%K']) < 20 and \
         last['RSI'] >= 45 and min(last_7['RSI']) < 30 and \
-        last['MACD'] > last['MACD_S'] and last['MACD'] < 0 and\
-        _3rd_last['100MA'] < last['100MA']:
+        (last['MACD'] > last['MACD_S'] or _2nd_last['MACD_dif'] > last['MACD_dif']) and last['MACD'] < 0 and\
+        min(last_7['100MA']) < last['100MA']:
         gmail('Buy signal for '+i,\
             '\nStop Loss (%) to be set at '+str(stop_loss)+ \
             '\nPosition size: '+str(pos)+ \
@@ -190,8 +195,8 @@ for i in trade_list:
     #Sell signal no TP
     elif last['%K'] < last['%D'] and max(last_7['%K']) > 80 and \
         last['RSI'] <= 55 and max(last_7['RSI']) > 70 and \
-        last['MACD'] < last['MACD_S'] and last['MACD'] > 0 and \
-        _3rd_last['100MA'] < last['100MA']:
+        (last['MACD'] < last['MACD_S'] or _2nd_last['MACD_dif'] > last['MACD_dif']) and last['MACD'] < 0 and\
+        max(last_7['100MA']) < last['100MA']:
         gmail('Sell signal for '+i,\
             '\nStop Loss (%) to be set at '+str(stop_loss)+ \
             '\nPosition size: '+str(pos)+\
@@ -200,7 +205,7 @@ for i in trade_list:
     #Buy signal with TP
     elif last['%K'] > last['%D'] and min(last_7['%K']) < 20 and \
         last['RSI'] >= 45 and min(last_7['RSI']) < 30 and \
-        last['MACD'] > last['MACD_S'] and last['MACD'] < 0:
+        (last['MACD'] > last['MACD_S'] or _2nd_last['MACD_dif'] > last['MACD_dif']) and last['MACD'] < 0:
         gmail('Buy signal for '+i,\
             '\nStop Loss (%) to be set at '+str(stop_loss)+ \
             '\nTake Profit (%) to be set at '+str(stop_loss * 2)+ \
@@ -211,15 +216,18 @@ for i in trade_list:
     #Sell signal with TP
     elif last['%K'] < last['%D'] and max(last_7['%K']) > 80 and \
         last['RSI'] <= 55 and max(last_7['RSI']) > 70 and \
-        last['MACD'] < last['MACD_S'] and last['MACD'] > 0:
+        (last['MACD'] < last['MACD_S'] or _2nd_last['MACD_dif'] > last['MACD_dif']) and last['MACD'] < 0:
         gmail('Sell signal for '+i,\
             '\nStop Loss (%) to be set at '+str(stop_loss)+ \
             '\nTake Profit (%) to be set at '+str(stop_loss * 2)+ \
             '\nPosition size: '+str(pos)+\
             '\n\nSent at '+_time+'.')
         n=n+1
+    else:
+        print('No signals detected for '+i)
     p=p+1
-
+print('Securities analysed: '+str(p))
+print('Signals detected: '+str(n))
 #Summary email for sanity checks
 #gmail('Market analyser ran at '+_time,str(p)+' trade items were analysed.\n' +str(n)+' trading signals were detected.')
 
