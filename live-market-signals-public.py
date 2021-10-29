@@ -39,8 +39,8 @@ _time = str(_time + timedelta(hours = 8)) #Philippine timezone
 hours = int(_time[11:-13]) #only retains hours
 minutes = int(_time[14:-10]) #only retains minutes
 
-#if minutes >= 30: #quits if minutes > 30
-#    quit()
+if minutes >= 30: #quits if minutes > 30
+    quit()
 
 _time = _time[:-7] #simplifies time expression
 
@@ -114,30 +114,6 @@ eth = 'ETH-USD'
 
 crypto_list = [btc,eth]
 
-#EU Stocks and yf codes
-ads = 'ADS.DE' #adidas
-ezj = 'EZJ.L' #easyjet
-arbs = 'AIR.PA' #airbus
-hnk = 'HEIO.AS' #heineken
-rr = 'RR.L' #Rolls Royce
-san = 'SAN' #santander
-
-eu_list = [ads,ezj,arbs,hnk,rr,san]
-
-#US Stocks and yf codes
-tsla = 'TSLA' #tesla
-amzn = 'AMZN' #amazon
-fb = 'FB' #facebook
-amd = 'AMD' #AMD
-
-us_list = [tsla,amzn,fb,amd]
-
-#ETFs and yf codes
-sp500 = 'SPY' #S&P500
-dow = 'DIA' #Dow Jones
-
-etf_list = [sp500,dow]
-
 trade_list = []
 
 #all time determination done in +8 timezone
@@ -146,13 +122,6 @@ if datetime.today().weekday() >= 5:
 else:
     trade_list = trade_list + forex_list + crypto_list
 
-'''
-    #need to finalise trade conditions
-    if hours >= 15:
-        trade_list = trade_list + eu_list
-    if  hours >= 22 or hours <= 4:
-        trade_list = trade_list + us_list + etf_list
-'''
 n=0 #Trade signals detected
 p=0 #Trade items analysed
 
@@ -185,7 +154,6 @@ for i in trade_list:
     fast = data['Close'].ewm(span=fast_p, adjust=False, min_periods=fast_p).mean()
     data['MACD'] = fast - slow
     data['MACD_S'] = data['MACD'].ewm(span=sig_p, adjust=False, min_periods=sig_p).mean()
-    data['MACD_dif'] = abs(data['MACD']-data['MACD_S'])
 
     #ATR
     atr_p = 14 #ATR period
@@ -197,21 +165,35 @@ for i in trade_list:
     true_range = np.max(ranges, axis=1)
     data['ATR'] = true_range.rolling(atr_p).sum()/atr_p
 
-    last_10 = data.iloc[-12:-2] #gets last 10 confirmed rows
+    last_5 = data.iloc[-7:-2] #gets last 10 confirmed rows
+    penum = data.iloc[-3] #2nd last confirmed
     last = data.iloc[-2] #last confirmed candle
 
     '''
     #Graphing
-    fig = go.Figure()
+    stoch = go.Figure()
+    macd = go.Figure()
+    rsi = go.Figure()
+    atr = go.Figure()
 
-    fig.add_trace(go.Scatter(x=data.index, y= data['%K'],line=dict(color='blue', width=.7), name = '%K'))
-    fig.add_trace(go.Scatter(x=data.index, y= data['%D'],line=dict(color='red', width=1.5), name = '%D'))
-    fig.add_trace(go.Scatter(x=data.index, y= data['MACD'],line=dict(color='lightblue', width=1.5), name = 'MACD'))
-    fig.add_trace(go.Scatter(x=data.index, y= data['MACD_S'],line=dict(color='lightgreen', width=1.5), name = 'Signal'))
-    fig.add_trace(go.Scatter(x=data.index, y= data['ATR'],line=dict(color='orange', width=1.5), name = 'ATR'))
+    stoch.add_trace(go.Scatter(x=data.index, y= data['%K'],line=dict(color='blue', width=.7), name = '%K'))
+    stoch.add_trace(go.Scatter(x=data.index, y= data['%D'],line=dict(color='red', width=1.5), name = '%D'))
 
-    fig.update_layout(title = i)
-    fig.show()
+    macd.add_trace(go.Scatter(x=data.index, y= data['MACD'],line=dict(color='lightblue', width=1.5), name = 'MACD'))
+    macd.add_trace(go.Scatter(x=data.index, y= data['MACD_S'],line=dict(color='lightgreen', width=1.5), name = 'Signal'))
+
+    rsi.add_trace(go.Scatter(x=data.index, y= data['RSI'],line=dict(color='brown', width=1.5), name = 'RSI'))
+
+    atr.add_trace(go.Scatter(x=data.index, y= data['ATR'],line=dict(color='orange', width=1.5), name = 'ATR'))
+
+    stoch.update_layout(title='Stochastic for '+i)
+    stoch.show()
+    macd.update_layout(title='MACD for '+i)
+    macd.show()
+    rsi.update_layout(title='RSI for '+i)
+    rsi.show()
+    atr.update_layout(title='ATR for '+i)
+    atr.show()
     '''
 
     #Stop loss calculation (%)
@@ -237,11 +219,11 @@ for i in trade_list:
     '''
 
     #Buy signal
-    if last['%K'] >= last['%D'] and min(last_10['%K']) <= 20\
+    if last['%K'] >= last['%D'] and min(last_5['%K']) <= 20\
         and last['MACD'] >= last['MACD_S'] and last['MACD'] <= 0\
-        and last['RSI'] >= 50 and last['RSI'] <= 60 and min(last_10['RSI']) <= 40:
+        and min(last_5['RSI']) <= 35 and last['RSI'] >=45:
         subject = 'Buy signal for '+i
-        if last['100MA'] > min(last_10['100MA']):
+        if last['100MA'] > penum['100MA']:
             body =  'SL(%) to be set at '+str(stop_loss)+\
                     '\nTP(%) to be set at '+str(stop_loss*2)+\
                     '\nPosition size: '+str(pos)+ \
@@ -255,11 +237,11 @@ for i in trade_list:
         n=n+1
         
     #Sell signal
-    elif last['%K'] <= last['%D'] and max(last_10['%K']) >= 80\
+    elif last['%K'] <= last['%D'] and max(last_5['%K']) >= 80\
         and last['MACD'] <= last['MACD_S'] and last['MACD'] >= 0\
-        and last['RSI'] <= 50 and last['RSI'] >= 40  and max(last_10['RSI']) >= 60:
+        and max(last_5['RSI']) >= 65 and last['RSI'] <= 55:
         subject = 'Sell signal for '+i
-        if last['100MA'] < min(last_10['100MA']):
+        if last['100MA'] < penum['100MA']:
             body =  'SL(%) to be set at '+str(stop_loss)+\
                     '\nTP(%) to be set at '+str(stop_loss*2)+\
                     '\nPosition size: '+str(pos)+\
@@ -278,6 +260,7 @@ for i in trade_list:
 
 print('Securities analysed: '+str(p))
 print('Signals detected: '+str(n))
+print('Last run at '+_time)
 
 #Summary email for sanity checks
 #gmail('Market analyser ran at '+_time,str(p)+' trade items were analysed.\n' +str(n)+' trading signals were detected.')
