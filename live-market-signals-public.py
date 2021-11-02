@@ -225,11 +225,11 @@ for i in trade_list:
         subject = 'Buy signal for '+i
         if last['100MA'] > penum['100MA']:
             body =  'SL(%) to be set at '+str(stop_loss)+\
-                    '\nTP(%) to be set at '+str(stop_loss*2)+\
                     '\nPosition size: '+str(pos)+ \
                     '\n\nSent at '+_time+'.'
         else:
             body =  'SL(%) to be set at '+str(stop_loss)+\
+                    '\nTP(%) to be set at '+str(stop_loss*2)+\
                     '\nPosition size: '+str(pos)+\
                     '\n\nSent at '+_time+'.'
         print('Buy signal detected for '+i)
@@ -243,11 +243,11 @@ for i in trade_list:
         subject = 'Sell signal for '+i
         if last['100MA'] < penum['100MA']:
             body =  'SL(%) to be set at '+str(stop_loss)+\
-                    '\nTP(%) to be set at '+str(stop_loss*2)+\
-                    '\nPosition size: '+str(pos)+\
+                    '\nPosition size: '+str(pos)+ \
                     '\n\nSent at '+_time+'.'
         else:
             body =  'SL(%) to be set at '+str(stop_loss)+\
+                    '\nTP(%) to be set at '+str(stop_loss*2)+\
                     '\nPosition size: '+str(pos)+\
                     '\n\nSent at '+_time+'.'
         print('Sell signal detected for '+i)
